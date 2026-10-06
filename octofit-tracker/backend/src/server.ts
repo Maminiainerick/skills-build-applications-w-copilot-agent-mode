@@ -12,6 +12,11 @@ const codespaceName = process.env.CODESPACE_NAME
 export const baseUrl = codespaceName
   ? `https://${codespaceName}-8000.app.github.dev`
   : 'http://localhost:8000'
+let databaseReady = false
+
+function databaseUnavailable(response: express.Response) {
+  response.status(503).json({ error: 'Database unavailable' })
+}
 
 app.use(express.json())
 app.get('/api/health/', (_request, response) => {
@@ -19,6 +24,11 @@ app.get('/api/health/', (_request, response) => {
 })
 app.get('/api/users/', async (_request, response, next) => {
   try {
+    if (!databaseReady) {
+      databaseUnavailable(response)
+      return
+    }
+
     response.json(await User.find().lean())
   } catch (error) {
     next(error)
@@ -26,6 +36,11 @@ app.get('/api/users/', async (_request, response, next) => {
 })
 app.get('/api/teams/', async (_request, response, next) => {
   try {
+    if (!databaseReady) {
+      databaseUnavailable(response)
+      return
+    }
+
     response.json(await Team.find().lean())
   } catch (error) {
     next(error)
@@ -33,6 +48,11 @@ app.get('/api/teams/', async (_request, response, next) => {
 })
 app.get('/api/activities/', async (_request, response, next) => {
   try {
+    if (!databaseReady) {
+      databaseUnavailable(response)
+      return
+    }
+
     response.json(await Activity.find().lean())
   } catch (error) {
     next(error)
@@ -40,6 +60,11 @@ app.get('/api/activities/', async (_request, response, next) => {
 })
 app.get('/api/leaderboard/', async (_request, response, next) => {
   try {
+    if (!databaseReady) {
+      databaseUnavailable(response)
+      return
+    }
+
     response.json(await Leaderboard.find().sort({ rank: 1 }).lean())
   } catch (error) {
     next(error)
@@ -47,6 +72,11 @@ app.get('/api/leaderboard/', async (_request, response, next) => {
 })
 app.get('/api/workouts/', async (_request, response, next) => {
   try {
+    if (!databaseReady) {
+      databaseUnavailable(response)
+      return
+    }
+
     response.json(await Workout.find().lean())
   } catch (error) {
     next(error)
@@ -58,7 +88,13 @@ app.use((error: Error, _request: express.Request, response: express.Response, _n
   response.status(500).json({ error: 'Internal server error' })
 })
 
-await connectDatabase()
+connectDatabase()
+  .then(() => {
+    databaseReady = true
+  })
+  .catch((error) => {
+    console.error('Database connection failed:', error)
+  })
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`OctoFit API listening at ${baseUrl}`)
